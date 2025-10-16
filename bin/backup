@@ -1,22 +1,54 @@
 #!/usr/bin/env bash
 
-set -eu
 
-DIR="$( cd "$(dirname "$0")" ; pwd -P )"
-PASS_PATH="backup/password"
+_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+PASS_PATH="${PASS_PATH:-backup/password}"
 
-if [[ $(pass show ${PASS_PATH}) != "" ]]; then
+if which pass && [[ $(pass show ${PASS_PATH}) != "" ]]; then
   export BORG_PASSPHRASE="$(pass ${PASS_PATH})"
 fi
-BACKUP_PATH="${HOME}"
-
-ARCHIVE_NAME="./$(hostname)$(echo ${BACKUP_PATH} | tr '\/' '_')"
 REPOSITORY="ssh://u170367@u170367.your-storagebox.de:23"
 
-echo "================================================================================"
-#borg break-lock ${REPOSITORY}/${ARCHIVE_NAME}
-borg create --exclude-from "${DIR}/backup.exclude" --stats --exclude-caches --progress ${REPOSITORY}/${ARCHIVE_NAME}::$(date +%Y%m%d%H%M%S) ${BACKUP_PATH} ${BACKUP_PATH}
+function backup_archive_name() {
+    local backup_path="${1:-}"
+    if [[ -z "${backup_path}" ]]; then
+      echo "no backup path provided"
+      exit 1
+    fi
 
-echo "--------------------------------------------------------------------------------"
-borg prune --list --keep-daily=7 --keep-weekly=4 --keep-monthly=1 ${REPOSITORY}/${ARCHIVE_NAME}
-echo "================================================================================"
+    backup_path=${backup_path#"/"}
+    echo "./$(echo ${backup_path} | tr '\/' '_' | tr '\.' '_')"
+}
+function backup_create() {
+  local backup_path="${1:-}"
+  local archive="$(backup_archive_name ${backup_path})"
+
+  #borg break-lock ${REPOSITORY}/${archive}
+
+  if ! borg info "${REPOSITORY}/${archive}"; then
+    borg init --encryption=repokey "${REPOSITORY}/${archive}"
+  fi
+
+  borg create --exclude-from "${_DIR}/backup.exclude" --stats --exclude-caches --progress "${REPOSITORY}/${archive}::$(date +%Y%m%d%H%M%S)" ${backup_path}
+
+  borg prune --list --keep-daily=7 --keep-weekly=4 --keep-monthly=1 "${REPOSITORY}/${archive}"
+}
+
+
+function backup_latest() {
+  local backup_path="${1:-}"
+  local archive="$(backup_archive_name ${backup_path})"
+
+  borg list "${REPOSITORY}/${archive}" --format '{archive}{NL}' --last 1
+}
+
+function backup_extract() {
+  local backup_path="${1:-}"
+  shift || true
+
+  local archive="$(backup_archive_name ${backup_path})"
+
+  borg list "${REPOSITORY}/${archive}"
+
+  borg extract "${REPOSITORY}/${archive}::$(backup_latest ${backup_path})" $@
+}
