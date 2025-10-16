@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -eu
+
+DIR="$( cd "$(dirname "$0")" ; pwd -P )"
+PASS_PATH="backup/password"
+
+if [[ $(pass show ${PASS_PATH}) != "" ]]; then
+  export BORG_PASSPHRASE="$(pass ${PASS_PATH})"
+fi
+BACKUP_PATH="${HOME}"
+
+ARCHIVE_NAME="./$(hostname)$(echo ${BACKUP_PATH} | tr '\/' '_')"
+REPOSITORY="ssh://u170367@u170367.your-storagebox.de:23"
+
+echo "================================================================================"
+#borg break-lock ${REPOSITORY}/${ARCHIVE_NAME}
+borg create --exclude-from "${DIR}/backup.exclude" --stats --exclude-caches --progress ${REPOSITORY}/${ARCHIVE_NAME}::$(date +%Y%m%d%H%M%S) ${BACKUP_PATH} ${BACKUP_PATH}
+
+echo "--------------------------------------------------------------------------------"
+borg prune --list --keep-daily=7 --keep-weekly=4 --keep-monthly=1 ${REPOSITORY}/${ARCHIVE_NAME}
+echo "================================================================================"
