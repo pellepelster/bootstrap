@@ -4,7 +4,7 @@
 _DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 PASS_PATH="${PASS_PATH:-backup/password}"
 
-if which pass && [[ $(pass show ${PASS_PATH}) != "" ]]; then
+if which pass &> /dev/null && [[ $(pass show ${PASS_PATH}) != "" ]]; then
   export BORG_PASSPHRASE="$(pass ${PASS_PATH})"
 fi
 REPOSITORY="ssh://u170367@u170367.your-storagebox.de:23"
@@ -17,7 +17,7 @@ function backup_archive_name() {
     fi
 
     backup_path=${backup_path#"/"}
-    echo "./$(echo ${backup_path} | tr '\/' '_' | tr '\.' '_')"
+    echo "./$(hostname)-$(echo ${backup_path} | tr '\/' '-' | tr '\.' '-')"
 }
 function backup_create() {
   local backup_path="${1:-}"
