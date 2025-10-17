@@ -3,9 +3,7 @@
 set -eu -o pipefail
 
 DIR="$(cd "$(dirname "$0")" ; pwd -P)"
-
-CONFIG_FILE="${CONFIG_DIR:-${HOME}/.borg_backup.json}"
-
+CONFIG_FILE="${CONFIG_FILE:-${HOME}/.borg_backup.json}"
 BACKUP_TEST_DIR="${HOME}/backup-test"
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/id_rsa}"
 
@@ -94,13 +92,14 @@ function task_init {
   backup_folders=$(echo "${backup_folders}" | tr "," "\n")
   for backup_folder in ${backup_folders}
   do
+      backup_folder=${backup_folder%/}
       backup_folders_list="${backup_folders_list}${delimiter}\"${backup_folder}\""
       if [[ -z "${delimiter}" ]]; then
         delimiter=","
       fi
   done
 
-  jq -n --arg repository_host ${repository_host} --arg ssh_key ${ssh_key} --argjson backup_folders "[${backup_folders_list}]" '{"repository_host":$repository_host,"ssh_key":$ssh_key,"backup_folders": $backup_folders}' | tee ${CONFIG_FILE}
+  jq -n --arg repository_host ${repository_host} --arg hostname $(hostname) --arg ssh_key ${ssh_key} --argjson backup_folders "[${backup_folders_list}]" '{"hostname":$hostname,"repository_host":$repository_host,"ssh_key":$ssh_key,"backup_folders": $backup_folders}' | tee ${CONFIG_FILE}
   divider_footer
 
   divider_header  "writing backup commands to '${HOME}/bin'"
@@ -110,6 +109,7 @@ function task_init {
   cp "${DIR}/bin/backup.exclude" "${HOME}/bin/backup.exclude"
   for backup_folder in ${backup_folders}
   do
+      backup_folder=${backup_folder%/}
       local backup_command="${HOME}/bin/backup-$(echo ${backup_folder#/} | tr '\/' '-' | tr '\.' '-')"
       echo "writing backup command '${backup_command}'"
       backup_template "${backup_folder}" > ${backup_command}
@@ -145,7 +145,7 @@ function task_export {
   cp ${CONFIG_FILE} "${export_dir}/config"
   divider_footer
 
-  local export_file="${USER}-export.tar"
+  local export_file="$(hostname)-${USER}-export.tar"
   divider_header "creating export '${export_file}'"
   (
     cd "${export_dir}"

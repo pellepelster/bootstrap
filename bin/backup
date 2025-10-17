@@ -2,12 +2,19 @@
 
 
 _DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+CONFIG_FILE="${CONFIG_FILE:-${HOME}/.borg_backup.json}"
 PASS_PATH="${PASS_PATH:-backup/password}"
 
 if which pass &> /dev/null && [[ $(pass show ${PASS_PATH}) != "" ]]; then
   export BORG_PASSPHRASE="$(pass ${PASS_PATH})"
 fi
-REPOSITORY="ssh://u170367@u170367.your-storagebox.de:23"
+
+if [[ ! -f "${CONFIG_FILE}" ]]; then
+  echo "config '${CONFIG_FILE}' not found, please run init first"
+  exit 1
+fi
+
+REPOSITORY="$(cat ${CONFIG_FILE} | jq -r .repository_host)"
 
 function backup_archive_name() {
     local backup_path="${1:-}"
@@ -40,6 +47,13 @@ function backup_latest() {
   local archive="$(backup_archive_name ${backup_path})"
 
   borg list "${REPOSITORY}/${archive}" --format '{archive}{NL}' --last 1
+}
+
+function backup_repo_key() {
+  local backup_path="${1:-}"
+  local archive="$(backup_archive_name ${backup_path})"
+
+  borg key export "${REPOSITORY}/${archive}"
 }
 
 function backup_extract() {
